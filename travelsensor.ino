@@ -61,13 +61,14 @@ const int piezoPin = 6;
 const boolean debug = true;
 const int timer_count = 2;
 const int displayInterval = 2000;
-const int configInterval = 5000;
+const int configInterval = 3500;
+const int buttonDelay = 350;
 
 const int sensorCount = 2;
 const String label[sensorCount] = {"Light", "Temperature"};
 const String unit [sensorCount] = {"Lux"  , "C"          };
 const int    pin  [sensorCount] = {A1     , A0           };
-const float  step [sensorCount] = {1.0, 0.1};
+const float  step [sensorCount] = {1.0    , 0.1          };
 
 // state variables
 int currentSensor;
@@ -186,13 +187,12 @@ void printLabel(int sensor) {
   lcd.print(")");
 }
 
-void printValue(int sensor) {
-  float val = readSensor(currentSensor);
-  val += delta[currentSensor];
+void printValue(float value) {
+  value += delta[currentSensor];
   lcd.setCursor(0,1);
   lcd.print("                ");
   lcd.setCursor(0,1);
-  lcd.print(val);
+  lcd.print(value);
 }
 
 boolean button1Pressed() {
@@ -270,7 +270,7 @@ void setup()
   lcd.clear();
 
   // Display splash screen
-  //splashScreen();
+  splashScreen();
   
   // Print the first label, otherwise it will only be printed after
   // the first 'interval' milliseconds have passed.
@@ -299,9 +299,8 @@ void loop()
     }
     mode = MODE_CONFIG;
     timer_reset(TIMER_CONFIG, configInterval);
-    delay(100); // wait for a moment to allow user to un-press button
-    configBeep(); // play sound only after a brief moment for a good "feel"
-    delay(200);
+    configBeep();
+    delay(buttonDelay);
     return;
   }
   
@@ -316,31 +315,30 @@ void loop()
       timer_reset(TIMER_DISPLAY, displayInterval);
     } else {
       // we are in config mode, process the button presses
-      if(button1Pressed()) {
-        if(debug) {
-          Serial.println("*** CONFIG mode: Minus button pressed ***");
+      if(button1Pressed() || button2Pressed()) {
+        String displaySign;
+        float sign;
+        if(button1Pressed()) {
+          sign = -1.0;
+          displaySign = "-";
+        } else if(button2Pressed()) {
+          sign = 1.0;
+          displaySign = "+";
         }
 
-        delta[currentSensor] = delta[currentSensor] - step[currentSensor];
-
-        printValue(currentSensor);
-        lcd.setCursor(15,1);
-        lcd.print("-");
-
-        timer_reset(TIMER_CONFIG, configInterval);
-
-      } else if (button2Pressed()) {
-      
         if(debug) {
-          Serial.println("*** CONFIG mode: Plus button pressed ***");
+          Serial.print("*** CONFIG mode: ");
+          Serial.print(displaySign);
+          Serial.println(" button pressed ***");
         }
+
+        delta[currentSensor] = delta[currentSensor] + (step[currentSensor] * sign);
         
-        delta[currentSensor] = delta[currentSensor] + step[currentSensor];
-        
-        printValue(currentSensor);
+        printValue(delta[currentSensor]);
         lcd.setCursor(15,1);
-        lcd.print("+");
-        
+        lcd.print(displaySign);
+
+        delay(buttonDelay);
         timer_reset(TIMER_CONFIG, configInterval);
       }
     }
@@ -358,7 +356,7 @@ void loop()
       printLabel(currentSensor);
     }
     
-    printValue(currentSensor);
+    printValue(readSensor(currentSensor));
 
     // wait a bit, otherwise the floating point values changes too fast
     delay(50);
@@ -367,4 +365,3 @@ void loop()
   }
 
 }
-
