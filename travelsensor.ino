@@ -3,58 +3,66 @@
 
 LiquidCrystal lcd(12,11,5,4,3,2);
 
-const int ledPin = 13;
-const int temperaturePin = 0;
-const int photoPin = 1;
+const int statusPin = 13;
 
-boolean buttonPressed;
+const int sensorCount = 2;
+String labels[sensorCount] = {"Light level", "Temperature °C"};
+int    pins  [sensorCount] = {1            , 0            };
+float  factor[sensorCount] = {1            , 0.4882814    };
+int    offset[sensorCount] = {0            , -50          };
 
-float currentTemp;
-int currentLight;
-String labels[] = {"Light level", "Temperature"}
+int currentSensor;
+
 
 void setup()
 {
+  
+  // LCD init
   lcd.begin(16, 2);
   lcd.clear();
 
-  pinMode(ledPin, OUTPUT);
-  pinMode(temperaturePin, INPUT);
-  pinMode(photoPin, INPUT);
-  
-  digitalWrite(ledPin, LOW);
-  
-  buttonPressed = false;
+  // pin init
+  for(int i = 0; i < sensorCount; i++) {
+    pinMode(pins[i], INPUT);
+  }
+  pinMode(statusPin, OUTPUT);
+  digitalWrite(statusPin, LOW);
+
+  // output rotation init
+  currentSensor = 0;
+  printLabel(currentSensor);
+  timer_reset();
 }
 
-float degreesC(int pin) {
-    int tmpReading = analogRead(temperaturePin);
-    float tmpVoltage =  tmpReading * 0.004882814;
-    return (tmpVoltage - 0.5) * 100.0;
+
+float readSensor(int sensor) {
+  int reading = analogRead(pins[sensor]);
+  return (reading * factor[sensor]) + offset[sensor];
 }
+
+void printLabel(int sensor) {
+  lcd.setCursor(0,0);
+  lcd.print(labels[sensor]);
+}
+
 void loop()
 {
-  
-  if(buttonPressed == true) {
-    // noop
-  } else {
-    int lightLevel = analogRead(photoPin);
-    float temp = degreesC(temperaturePin);
-  
-    
-    lcd.setCursor(0,0);
-    lcd.print("Light level:    ");
-    lcd.setCursor(0,0);
-    lcd.print("Light level: ");
-    lcd.print(lightLevel);
-  
-    lcd.setCursor(0,1);
-    lcd.print("Current Tmp:    ");
-    lcd.setCursor(0,1);
-    lcd.print("Current Tmp:");
-    lcd.print(temp);
-
-    delay(100);
+  if(timer_check()) {
+    currentSensor++;
+    if(currentSensor >= sensorCount) {
+      currentSensor = 0;
+    }
+    lcd.clear();
+    printLabel(currentSensor);
   }
+  
+  float val = readSensor(currentSensor);
+  lcd.setCursor(0,1);
+  lcd.print("                ");
+  lcd.setCursor(0,1);
+  lcd.print(val);
+
+  delay(200);
+  
 }
 
