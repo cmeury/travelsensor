@@ -1,7 +1,7 @@
 /** travelsensor.ino
   *
-  * Learning to use the Arduino platform; simple code to display temperature,
-  * light level and pressure on a liquid crystal display.
+  * Learning to use the Arduino platform; displaying various sensor outputs
+  * on a liquid crystal display (temperature, light level and pressure).
   *
   * Components:
   * - SparkFun RedBoard 
@@ -27,18 +27,39 @@ const int    pins  [sensorCount] = {1            , 0            };
 const float  factor[sensorCount] = {1            , 0.4882814    };
 const int    offset[sensorCount] = {0            , -50          };
 
-// Conversion of the temperature read-out is done according
-// to the SparkFun Inventor's Kit 3.1 guide-book.
+// array of function pointers, assigned in setup()
+float (*conv[sensorCount]) (int);
 
-// Conversion of the Lux reading from the photo-cell (GL55228) is done
-// according to the marvellous research done here:
-// http://pi.gate.ac.uk/posts/2014/02/25/airpisensors/
+/**
+  * Conversion of the Lux reading from the photo-cell (GL55228) is done
+  * according to the marvellous research done here:
+  * http://pi.gate.ac.uk/posts/2014/02/25/airpisensors/
+  */
+float conv_lux(int reading) {
+  return reading;
+}
 
+/**
+  * Conversion of the temperature read-out is done according
+  * to the SparkFun Inventor's Kit 3.1 guide-book.
+  */
+float conv_temp(int reading) {
+  float voltage = map(reading,0,1023,0,5000) / 1000.0;
+  return (voltage - 0.5) * 100.0;
+}
 
+// state variables
 int currentSensor;
 
 void setup()
 {
+  // Set-up serial connection for debugging
+  Serial.begin(9600);
+  
+  // Assign conversion functions to function pointer array
+  conv[0] = conv_lux;
+  conv[1] = conv_temp;
+
   // Initialize LCD and clear the display
   lcd.begin(16, 2);
   lcd.clear();
@@ -65,12 +86,13 @@ void setup()
 
 /**
   * Do an analog of the given sensor number.
-  * Uses pins[], factor[] and sensor[] arrays to read an analog input
-  * and convert it to the final display value.
+  * Uses pins[] array to read out the proper pin and the conv[] array
+  * to convert the reading with the appropriate conversion function 
+  * to the final display value.
   */
 float readSensor(int sensor) {
   int reading = analogRead(pins[sensor]);
-  return (reading * factor[sensor]) + offset[sensor];
+  return conv[sensor](reading);
 }
 
 /**
