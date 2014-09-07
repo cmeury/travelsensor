@@ -134,6 +134,9 @@ float readSensor(int sensor) {
 /** *** UI *** */
 /** *** ** *** */
 
+/**
+  * Display splash screen.
+  */
 void splashScreen() {
   if(debug) {
     Serial.println("*** travelsensor booting up...");
@@ -157,6 +160,9 @@ void splashScreen() {
   delay(1000);
 }
 
+/**
+  * Play beep when entering config mode.
+  */
 void configBeep() {
   tone(piezoPin, 500, 200);
   delay(210);
@@ -166,10 +172,20 @@ void configBeep() {
   delay(110);
 }
 
+/**
+  * Play beep when entering display mode.
+  */
 void displayBeep() {
   tone(piezoPin, 1100, 200);
   delay(230);
   tone(piezoPin, 1100, 200);
+}
+/**
+  * Audio feedback for button presses.
+  */
+void buttonBeep() {
+  tone(piezoPin, 400, 80);
+  delay(85);
 }
 
 /**
@@ -201,10 +217,17 @@ void printValue(float value) {
   * Print the given value in the second row, 8th column, clearing the last 8 columns first.
   */
 void printOffset(float value) {
-  lcd.setCursor(8,1);
-  lcd.print("        ");
+  clearOffset();
   lcd.setCursor(8,1);
   lcd.print(value);
+}
+
+/**
+  * Clear the offset area of the LCD.
+  */
+void clearOffset() {
+  lcd.setCursor(8,1);
+  lcd.print("        ");
 }
 
 /**
@@ -343,16 +366,21 @@ void loop()
       }
       mode = MODE_DISPLAY;
       displayBeep();
+      clearOffset();
       timer_reset(TIMER_DISPLAY, displayInterval);
     } else {
       // we are in config mode, process the button presses
       if(button1Pressed() || button2Pressed()) {
+        
+        buttonBeep();
+        
         float sign;
         if(button1Pressed()) {
           sign = -1.0;
         } else if(button2Pressed()) {
           sign = 1.0;
         }
+        
         delta[currentSensor] = delta[currentSensor] + (step[currentSensor] * sign);
         printOffset(delta[currentSensor]);
         lcd.setCursor(15,1);
