@@ -16,16 +16,16 @@
 
 #include <LiquidCrystal.h>
 
+#define 	M_E   2.7182818284590452354
+
 LiquidCrystal lcd(12,11,5,4,3,2);
 
 const int statusPin = 13;
 
 const int sensorCount = 2;
-const String labels[sensorCount] = {"Light", "Temperature"};
-const String unit  [sensorCount] = {"Lux"        , "C"};
-const int    pins  [sensorCount] = {1            , 0            };
-const float  factor[sensorCount] = {1            , 0.4882814    };
-const int    offset[sensorCount] = {0            , -50          };
+const String label[sensorCount] = {"Light", "Temperature"};
+const String unit [sensorCount] = {"Lux"  , "C"          };
+const int    pin  [sensorCount] = {1      , 0            };
 
 // array of function pointers, assigned in setup()
 float (*conv[sensorCount]) (int);
@@ -36,7 +36,21 @@ float (*conv[sensorCount]) (int);
   * http://pi.gate.ac.uk/posts/2014/02/25/airpisensors/
   */
 float conv_lux(int reading) {
-  return reading;
+  
+  // calculate the current resistance of the photo-cell
+  float pullUp = 10000; // 10 kOhm pull-down resistor
+  float vin = 5000;     // mV
+  float vout = map(reading,0,1023,0,5000);  // in mV
+  float cellRes = pullUp * ((vin/vout)-1);
+  
+  Serial.print("Resistance: ");
+  Serial.println(cellRes);
+  
+  // convert to Lux
+  float alpha = ( log(cellRes/1000) - 4.125 ) / -0.6704;
+  float lux = pow(M_E, alpha); // e^alpha
+  
+  return lux;
 }
 
 /**
@@ -66,7 +80,7 @@ void setup()
 
   // Set the modes for the sensor and status pins
   for(int i = 0; i < sensorCount; i++) {
-    pinMode(pins[i], INPUT);
+    pinMode(pin[i], INPUT);
   }
   pinMode(statusPin, OUTPUT);
   
@@ -91,8 +105,20 @@ void setup()
   * to the final display value.
   */
 float readSensor(int sensor) {
-  int reading = analogRead(pins[sensor]);
-  return conv[sensor](reading);
+  int reading = analogRead(pin[sensor]);
+  float converted = conv[sensor](reading);
+  
+  // debug
+  Serial.print("Sensor[");
+  Serial.print(label[sensor]);
+  Serial.print("]: Analog Reading: ");
+  Serial.print(reading);
+  Serial.print(", Converted: ");
+  Serial.print(converted);
+  Serial.print(" ");
+  Serial.println(unit[sensor]);
+  
+  return converted;
 }
 
 /**
@@ -100,7 +126,7 @@ float readSensor(int sensor) {
   */
 void printLabel(int sensor) {
   lcd.setCursor(0,0);
-  lcd.print(labels[sensor]);
+  lcd.print(label[sensor]);
   lcd.print(" (");
   lcd.print(unit[sensor]);
   lcd.print(")");
