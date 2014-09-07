@@ -50,6 +50,7 @@
 
 #define TIMER_DISPLAY 0
 #define TIMER_CONFIG 1
+#define TIMER_REDRAW 2
 
 // hardware set-up
 LiquidCrystal lcd(12,11,5,4,3,2);
@@ -59,9 +60,12 @@ const int piezoPin = 6;
 
 // configuration
 const boolean debug = true;
-const int timer_count = 2;
+
+const int timer_count = 3;
 const int displayInterval = 2000;
 const int configInterval = 3500;
+const int redrawInterval = 400;
+
 const int buttonDelay = 350;
 
 const int sensorCount = 2;
@@ -188,7 +192,6 @@ void printLabel(int sensor) {
 }
 
 void printValue(float value) {
-  value += delta[currentSensor];
   lcd.setCursor(0,1);
   lcd.print("                ");
   lcd.setCursor(0,1);
@@ -280,8 +283,9 @@ void setup()
   // Set-up two timers
   timer_init(timer_count);
   
-  // Start the display timer  
+  // Start the display and redraw timer  
   timer_reset(TIMER_DISPLAY, displayInterval);
+  timer_reset(TIMER_REDRAW, redrawInterval);
 }
 
 
@@ -333,7 +337,7 @@ void loop()
         }
 
         delta[currentSensor] = delta[currentSensor] + (step[currentSensor] * sign);
-        
+
         printValue(delta[currentSensor]);
         lcd.setCursor(15,1);
         lcd.print(displaySign);
@@ -346,22 +350,24 @@ void loop()
   }
   
   if(mode == MODE_DISPLAY) {
-  
-    if(timer_check(TIMER_DISPLAY)) {
-      currentSensor++;
-      if(currentSensor >= sensorCount) {
-        currentSensor = 0;
+    if(timer_check(TIMER_REDRAW)) {
+      if(timer_check(TIMER_DISPLAY)) {
+        currentSensor++;
+        if(currentSensor >= sensorCount) {
+          currentSensor = 0;
+        }
+        lcd.clear();
+        printLabel(currentSensor);
       }
-      lcd.clear();
-      printLabel(currentSensor);
-    }
+      
+      float readout = readSensor(currentSensor);
+      readout += delta[currentSensor];
+      printValue(readout);
+
+      // wait a bit, otherwise the floating point values changes too fast
+      delay(50);
     
-    printValue(readSensor(currentSensor));
-
-    // wait a bit, otherwise the floating point values changes too fast
-    delay(50);
-  
-    return;
+      return;
+    }
   }
-
 }
