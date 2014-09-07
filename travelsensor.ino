@@ -141,7 +141,7 @@ float readSensor(int sensor) {
   float converted = conv[sensor](reading);
   
   // debug
-  if(false) {
+  if(debug) {
     Serial.print("Sensor[");
     Serial.print(label[sensor]);
     Serial.print("]: Analog Reading: ");
@@ -294,8 +294,10 @@ void timer_reset(int timer, int interval) {
 
 void setup()
 {
-  // Set-up serial connection for debugging
-  Serial.begin(9600);
+  if(debug) {
+    // Set-up serial connection for debugging
+    Serial.begin(9600);
+  }
   
   // Assign conversion functions to function pointer array
   conv[0] = conv_lux;
