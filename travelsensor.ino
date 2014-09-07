@@ -169,6 +169,12 @@ void configBeep() {
   tone(piezoPin, 400, 200);
 }
 
+void displayBeep() {
+  tone(piezoPin, 400, 100);
+  delay(110);
+  tone(piezoPin, 1100, 300);
+}
+
 /**
   * Print the label and unit of the current sensor in the top row of the LCD.
   */
@@ -287,13 +293,13 @@ void loop()
 {
 
   // activating config mode
-  if(button1Pressed() == true && mode == MODE_DISPLAY) {
+  if( (button1Pressed() || button2Pressed() ) && mode == MODE_DISPLAY) {
     if(debug) {
       Serial.println("*** Entering CONFIG mode ***");
     }
     mode = MODE_CONFIG;
     timer_reset(TIMER_CONFIG, configInterval);
-    delay(200); // wait for a moment to allow user to un-press button
+    delay(100); // wait for a moment to allow user to un-press button
     configBeep(); // play sound only after a brief moment for a good "feel"
     delay(200);
     return;
@@ -306,6 +312,7 @@ void loop()
         Serial.println("*** Back to DISPLAY mode ***");
       }
       mode = MODE_DISPLAY;
+      displayBeep();
       timer_reset(TIMER_DISPLAY, displayInterval);
     } else {
       // we are in config mode, process the button presses
