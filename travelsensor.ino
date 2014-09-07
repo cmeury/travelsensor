@@ -43,6 +43,7 @@
 
 #include <LiquidCrystal.h>
 
+// constants
 #define 	M_E   2.7182818284590452354
 
 #define MODE_CONFIG 0
@@ -51,6 +52,19 @@
 #define TIMER_DISPLAY 0
 #define TIMER_CONFIG 1
 #define TIMER_REDRAW 2
+
+#define SYMBOL_DEGREE 0
+
+// custom degree sign for display on LCD
+byte degree[8] = {
+B01110,
+B10001,
+B10001,
+B01110,
+B00000,
+B00000,
+B00000,
+}; 
 
 // hardware set-up
 LiquidCrystal lcd(12,11,5,4,3,2);
@@ -69,10 +83,11 @@ const int redrawInterval = 400;
 const int buttonDelay = 350;
 
 const int sensorCount = 2;
-const String label[sensorCount] = {"Light", "Temperature"};
-const String unit [sensorCount] = {"Lux"  , "C"          };
-const int    pin  [sensorCount] = {A1     , A0           };
-const float  step [sensorCount] = {1.0    , 0.1          };
+const String label [sensorCount] = {"Light", "Temperature"};
+const String unit  [sensorCount] = {"Lux"  , "C"          };
+const int    symbol[sensorCount] = {-1     , SYMBOL_DEGREE}; // if set to -1, don't print anything
+const int    pin   [sensorCount] = {A1     , A0           };
+const float  step  [sensorCount] = {1.0    , 0.1          };
 
 // state variables
 int currentSensor;
@@ -169,15 +184,18 @@ void splashScreen() {
 }
 
 void configBeep() {
-  tone(piezoPin, 1100, 100);
+  tone(piezoPin, 500, 200);
+  delay(210);
+  tone(piezoPin, 1500, 400);
+  delay(410);
+  tone(piezoPin, 1500, 100);
   delay(110);
-  tone(piezoPin, 400, 200);
 }
 
 void displayBeep() {
-  tone(piezoPin, 400, 100);
-  delay(110);
-  tone(piezoPin, 1100, 300);
+  tone(piezoPin, 1100, 200);
+  delay(230);
+  tone(piezoPin, 1100, 200);
 }
 
 /**
@@ -187,21 +205,44 @@ void printLabel(int sensor) {
   lcd.setCursor(0,0);
   lcd.print(label[sensor]);
   lcd.print(" (");
+
+  if(symbol[sensor] != -1) {
+    lcd.write(byte(symbol[sensor]));
+  }
   lcd.print(unit[sensor]);
   lcd.print(")");
 }
 
+/**
+  * Print the given value in the second row, clearing the first 8 columns first.
+  */
 void printValue(float value) {
   lcd.setCursor(0,1);
-  lcd.print("                ");
+  lcd.print("        ");
   lcd.setCursor(0,1);
   lcd.print(value);
 }
 
+/**
+  * Print the given value in the second row, 8th column, clearing the last 8 columns first.
+  */
+void printOffset(float value) {
+  lcd.setCursor(8,1);
+  lcd.print("        ");
+  lcd.setCursor(8,1);
+  lcd.print(value);
+}
+
+/**
+  * Is button1 currently being pressed?
+  */
 boolean button1Pressed() {
   return digitalRead(button1Pin) == LOW;
 }
 
+/**
+  * Is button2 currently being pressed?
+  */
 boolean button2Pressed() {
   return digitalRead(button2Pin) == LOW;
 }
@@ -214,11 +255,17 @@ boolean button2Pressed() {
 unsigned long* last;
 int* intervals;
 
+/**
+  * Set-up the given amount of timers.
+  */
 void timer_init(int count) {
   last = new unsigned long[count];
   intervals = new int[count];
 }
 
+/**
+  * Have we reached or passed the interval for the given timer?
+  */
 boolean timer_check(int timer) {
   unsigned long now = millis();
   if(intervals[timer] == 0) {
@@ -232,6 +279,9 @@ boolean timer_check(int timer) {
   return false; 
 }
 
+/**
+  * Reset or start the given timer using this interval.
+  */
 void timer_reset(int timer, int interval) {
   last[timer] = millis();
   intervals[timer] = interval;
@@ -271,7 +321,8 @@ void setup()
   // Initialize LCD and clear the display
   lcd.begin(16, 2);
   lcd.clear();
-
+  lcd.createChar(SYMBOL_DEGREE, degree);
+  
   // Display splash screen
   splashScreen();
   
@@ -320,28 +371,16 @@ void loop()
     } else {
       // we are in config mode, process the button presses
       if(button1Pressed() || button2Pressed()) {
-        String displaySign;
         float sign;
         if(button1Pressed()) {
           sign = -1.0;
-          displaySign = "-";
         } else if(button2Pressed()) {
           sign = 1.0;
-          displaySign = "+";
         }
-
-        if(debug) {
-          Serial.print("*** CONFIG mode: ");
-          Serial.print(displaySign);
-          Serial.println(" button pressed ***");
-        }
-
         delta[currentSensor] = delta[currentSensor] + (step[currentSensor] * sign);
-
-        printValue(delta[currentSensor]);
+        printOffset(delta[currentSensor]);
         lcd.setCursor(15,1);
-        lcd.print(displaySign);
-
+        lcd.print("C");
         delay(buttonDelay);
         timer_reset(TIMER_CONFIG, configInterval);
       }
