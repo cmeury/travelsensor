@@ -22,7 +22,9 @@ LiquidCrystal lcd(12,11,5,4,3,2);
 
 const boolean debug = true;
 
-const int statusPin = 13;
+const int button1Pin = 7;
+const int button2Pin = 8;
+const int piezoPin = 6;
 
 const int sensorCount = 2;
 const String label[sensorCount] = {"Light", "Temperature"};
@@ -73,30 +75,49 @@ void setup()
   conv[0] = conv_lux;
   conv[1] = conv_temp;
 
-  // Initialize LCD and clear the display
-  lcd.begin(16, 2);
-  lcd.clear();
 
-  // Set the modes for the sensor and status pins
+
+  // Set the modes for the sensor, button and piezo pins
   for(int i = 0; i < sensorCount; i++) {
     pinMode(pin[i], INPUT);
   }
-  pinMode(statusPin, OUTPUT);
-  
-  // Turn off the status LED
-  digitalWrite(statusPin, LOW);
+  pinMode(button1Pin, INPUT);
+  pinMode(button2Pin, INPUT);
+  pinMode(piezoPin, OUTPUT);
 
   // Set the first sensor to read to 0
   currentSensor = 0;
   
+  // Initialize LCD and clear the display
+  lcd.begin(16, 2);
+  lcd.clear();
+
+  // Display splash screen
+  splashScreen();
+  
   // Print the first label, otherwise it will only be printed after
   // the first 'interval' milliseconds have passed.
+  lcd.clear();
   printLabel(currentSensor);
   
   // Start the timer
   timer_reset();
+
 }
 
+void splashScreen() {
+  lcd.setCursor(0,0);
+  lcd.print("travelsensor");
+  lcd.setCursor(0,1);
+  lcd.print(" - sep 14");
+  tone(piezoPin, 500, 100);
+  delay(110);
+  tone(piezoPin, 750, 100);
+  delay(110);
+  tone(piezoPin, 1000, 100);
+  delay(110);
+  delay(1000);
+}
 /**
   * Do an analog of the given sensor number.
   * Uses pins[] array to read out the proper pin and the conv[] array
@@ -138,6 +159,13 @@ void printLabel(int sensor) {
   */
 void loop()
 {
+  if(debug) {
+    Serial.print("Button1: ");
+    Serial.println(digitalRead(button1Pin));
+    Serial.print("Button2: ");
+    Serial.println(digitalRead(button2Pin));
+  }
+
   if(timer_check()) {
     currentSensor++;
     if(currentSensor >= sensorCount) {
@@ -155,6 +183,8 @@ void loop()
 
   // wait a bit, otherwise the floating point values changes too fast
   delay(200);
+  
+
   
 }
 
