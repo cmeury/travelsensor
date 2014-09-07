@@ -20,6 +20,8 @@
 
 LiquidCrystal lcd(12,11,5,4,3,2);
 
+const boolean debug = true;
+
 const int statusPin = 13;
 
 const int sensorCount = 2;
@@ -42,9 +44,6 @@ float conv_lux(int reading) {
   float vin = 5000;     // mV
   float vout = map(reading,0,1023,0,5000);  // in mV
   float cellRes = pullUp * ((vin/vout)-1);
-  
-  Serial.print("Resistance: ");
-  Serial.println(cellRes);
   
   // convert to Lux
   float alpha = ( log(cellRes/1000) - 4.125 ) / -0.6704;
@@ -109,14 +108,16 @@ float readSensor(int sensor) {
   float converted = conv[sensor](reading);
   
   // debug
-  Serial.print("Sensor[");
-  Serial.print(label[sensor]);
-  Serial.print("]: Analog Reading: ");
-  Serial.print(reading);
-  Serial.print(", Converted: ");
-  Serial.print(converted);
-  Serial.print(" ");
-  Serial.println(unit[sensor]);
+  if(debug) {
+    Serial.print("Sensor[");
+    Serial.print(label[sensor]);
+    Serial.print("]: Analog Reading: ");
+    Serial.print(reading);
+    Serial.print(", Converted: ");
+    Serial.print(converted);
+    Serial.print(" ");
+    Serial.println(unit[sensor]);
+  }
   
   return converted;
 }
