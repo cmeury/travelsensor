@@ -11,6 +11,7 @@
   * - 16x2 White on Black LCD (with headers)
   * - TMP36 Temperature Sensor
   * - GL5528 Photo-Cell
+  * - SFE BMP180 Pressure Breakout Board
   * - 2 buttons
   * - Piezo Speaker - PC Mount 12mm 2.048kHz
   */
