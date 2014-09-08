@@ -16,6 +16,8 @@
   */
 
 #include <LiquidCrystal.h>
+#include <SFE_BMP180.h>
+#include <Wire.h>
 
 // constants
 #define 	M_E   2.7182818284590452354
@@ -28,6 +30,8 @@
 #define TIMER_REDRAW 2
 
 #define SYMBOL_DEGREE 0
+
+#define BASEL_SEA_LEVEL_PRESSURE 1013.0 // from http://www.meteoschweiz.admin.ch/web/en/weather/current_weather.par0016.sub0036.html?region=5&station=BAS
 
 // custom degree sign for display on LCD
 byte degree[8] = {
@@ -50,21 +54,24 @@ const int piezoPin = 6;
 const boolean debug = true;
 
 const int timer_count = 3;
-const int displayInterval = 2000;
+const int displayInterval = 2500;
 const int configInterval = 3500;
-const int redrawInterval = 400;
+const int redrawInterval = 500;
 
 const int buttonDelay = 350;
 
-const int sensorCount = 2;
-const String label [sensorCount] = {"Light", "Temperature"};
-const String unit  [sensorCount] = {"Lux"  , "C"          };
-const int    symbol[sensorCount] = {-1     , SYMBOL_DEGREE}; // if set to -1, don't print anything
-const int    pin   [sensorCount] = {A1     , A0           };
-const float  step  [sensorCount] = {1.0    , 0.1          };
+// pressure I2C driver object
+SFE_BMP180 pressure;
+
+const int sensorCount = 4;
+const String label [sensorCount] = {"Light", "Temperature", "Pressure", "Altitude"};
+const String unit  [sensorCount] = {"Lux"  , "C"          , "mb"    , "m"         };
+const int    symbol[sensorCount] = {-1     , SYMBOL_DEGREE, -1      , -1          }; // if set to -1, don't print anything
+const int    pin   [sensorCount] = {A1     , A0           , -1      , -1          };
+const float  step  [sensorCount] = {1.0    , 0.1          , 10.0    , 10.0        };
 
 // state variables
-int currentSensor;
+int cur_sens;
 int mode;
 float delta[sensorCount];
 
@@ -72,25 +79,26 @@ float delta[sensorCount];
 /** *** SENSORS *** */
 /** *** ******* *** */
 
-// array of function pointers, assigned in setup()
-float (*conv[sensorCount]) (int);
+// array of function pointers for reading and converting sensor data, assigned in setup()
+double (*conv[sensorCount]) (double);
+double (*read[sensorCount]) (int);
 
 /**
   * Conversion of the Lux reading from the photo-cell (GL55228) is done
   * according to the marvellous research done here:
   * http://pi.gate.ac.uk/posts/2014/02/25/airpisensors/
   */
-float conv_lux(int reading) {
+double conv_lux(double reading) {
   
   // calculate the current resistance of the photo-cell
-  float pullUp = 10000; // 10 kOhm pull-down resistor
-  float vin = 5000;     // mV
-  float vout = map(reading,0,1023,0,5000);  // in mV
-  float cellRes = pullUp * ((vin/vout)-1);
+  double pullUp = 10000; // 10 kOhm pull-down resistor
+  double vin = 5000;     // mV
+  double vout = map(reading,0,1023,0,5000);  // in mV
+  double cellRes = pullUp * ((vin/vout)-1);
   
   // convert to Lux
-  float alpha = ( log(cellRes/1000) - 4.125 ) / -0.6704;
-  float lux = pow(M_E, alpha); // e^alpha
+  double alpha = ( log(cellRes/1000) - 4.125 ) / -0.6704;
+  double lux = pow(M_E, alpha); // e^alpha
   
   return lux;
 }
@@ -99,34 +107,59 @@ float conv_lux(int reading) {
   * Conversion of the temperature read-out is done according
   * to the SparkFun Inventor's Kit 3.1 guide-book.
   */
-float conv_temp(int reading) {
-  float voltage = map(reading,0,1023,0,5000) / 1000.0;
+double conv_temp(double reading) {
+  double voltage = map(reading,0,1023,0,5000) / 1000.0;
   return (voltage - 0.5) * 100.0;
 }
 
 /**
-  * Do an analog of the given sensor number.
-  * Uses pins[] array to read out the proper pin and the conv[] array
-  * to convert the reading with the appropriate conversion function 
-  * to the final display value.
+  * Return the given pressure as is.
   */
-float readSensor(int sensor) {
-  int reading = analogRead(pin[sensor]);
-  float converted = conv[sensor](reading);
-  
-  // debug
-  if(debug) {
-    Serial.print("Sensor[");
-    Serial.print(label[sensor]);
-    Serial.print("]: Analog Reading: ");
-    Serial.print(reading);
-    Serial.print(", Converted: ");
-    Serial.print(converted);
-    Serial.print(" ");
-    Serial.println(unit[sensor]);
+double conv_pressure(double reading) {
+  return reading;
+}
+
+/**
+  * Convert pressure to altitude using the a constant base-line.
+  */
+double conv_altitude(double reading) {
+  return pressure.altitude(reading,BASEL_SEA_LEVEL_PRESSURE);
+}
+
+/**
+  * Do an analog of the given sensor number.
+  * Uses pins[] array to read out the proper pin.
+  */
+double read_analog(int sensor) {
+  double reading = analogRead(pin[sensor]);
+  return reading;
+}
+
+/**
+  * Read-out pressure data. Taken from example code in SparkFun's BMP180 library.
+  */
+double read_pressure(int sensor) {
+  char status = pressure.startTemperature();
+  double T,P;
+  if (status != 0)
+  {
+    delay(status); // wait for the measurement to complete
+    status = pressure.getTemperature(T);
+    if (status != 0)
+    {
+      status = pressure.startPressure(3);
+      if (status != 0)
+      {
+        delay(status);
+        status = pressure.getPressure(P,T);
+        if (status != 0)
+        {
+          return P;
+        }
+      }
+    }
   }
-  
-  return converted;
+  return 1.0;
 }
 
 
@@ -296,9 +329,19 @@ void setup()
     Serial.begin(9600);
   }
   
-  // Assign conversion functions to function pointer array
+  // Assign read-out and conversion functions to function pointer array
+  read[0] = read_analog;
   conv[0] = conv_lux;
+
+  read[1] = read_analog;
   conv[1] = conv_temp;
+
+  read[2] = read_pressure;
+  conv[2] = conv_pressure;
+
+  read[3] = read_pressure;
+  conv[3] = conv_altitude;
+  
 
   // Set the modes for the sensor, button and piezo pins
   for(int i = 0; i < sensorCount; i++) {
@@ -309,13 +352,16 @@ void setup()
   pinMode(piezoPin, OUTPUT);
 
   // Set the first sensor to read to 0, setting display mode
-  currentSensor = 0;
+  cur_sens = 0;
   mode = MODE_DISPLAY;
   
   // Set the delta values for all sensors to 0
   for(int i = 0; i < sensorCount; i++) {
     delta[i] = 0;
   }
+  
+  // Initialize pressure sensor
+  pressure.begin();
   
   // Initialize LCD and clear the display
   lcd.begin(16, 2);
@@ -328,7 +374,7 @@ void setup()
   // Print the first label, otherwise it will only be printed after
   // the first 'interval' milliseconds have passed.
   lcd.clear();
-  printLabel(currentSensor);
+  printLabel(cur_sens);
   
   // Set-up two timers
   timer_init(timer_count);
@@ -381,8 +427,8 @@ void loop()
           sign = 1.0;
         }
         
-        delta[currentSensor] = delta[currentSensor] + (step[currentSensor] * sign);
-        printOffset(delta[currentSensor]);
+        delta[cur_sens] = delta[cur_sens] + (step[cur_sens] * sign);
+        printOffset(delta[cur_sens]);
         lcd.setCursor(15,1);
         lcd.print("C");
         delay(buttonDelay);
@@ -395,17 +441,18 @@ void loop()
   if(mode == MODE_DISPLAY) {
     if(timer_check(TIMER_REDRAW)) {
       if(timer_check(TIMER_DISPLAY)) {
-        currentSensor++;
-        if(currentSensor >= sensorCount) {
-          currentSensor = 0;
+        cur_sens++;
+        if(cur_sens >= sensorCount) {
+          cur_sens = 0;
         }
         lcd.clear();
-        printLabel(currentSensor);
+        printLabel(cur_sens);
       }
       
-      float readout = readSensor(currentSensor);
-      readout += delta[currentSensor];
-      printValue(readout);
+      double readout = read[cur_sens](cur_sens);
+      double converted = conv[cur_sens](readout);
+      converted += delta[cur_sens];
+      printValue(converted);
 
       // wait a bit, otherwise the floating point values changes too fast
       delay(50);
